@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+	<title>See your vioce</title>
+	<meta charset="utf-8">
+	<script src="./assets/three.min.js"></script>
+	<script src="./assets/OrbitControls.js"></script>
+	<style>
+		body {
+			/* background-size: 100% 100%;
+			background-position: center center;
+			overflow: auto; */
+			margin: 0;
+			color: #fff;
+			font-family: Monospace;
+			font-size: 24px;
+			line-height: 34px;
+			/* height: 100vh; */
+			/* width: 100vh; */
+			/* overflow: hidden; */
+		}
+
+		#container {
+			position: fixed;
+		}
+
+		#page2 {
+			position: relative;
+			top: 100vh;
+			background-color: #b6b6b645;
+			width: 100%;
+			height: 400px;
+			transform: translateY(-60px);
+		}
+
+		#conlist {
+			position: absolute;
+			left: 20px;
+			/* bottom: -120px; */
+			/* animation: myupdown 1s forwards; */
+			/* animation-timing-function: ease-out; */
+		}
+
+		/* @keyframes myupdown {
+			from {
+				transform: translateY(0px);
+			}
+
+			to {
+				transform: translateY(-120px);
+			}
+		}
+
+		@keyframes mydownup {
+			from {
+				transform: translateY(-120px);
+			}
+
+			to {
+				transform: translateY(0px);
+			}
+		} */
+		/* 300 100  */
+		#bot {
+			background-image: url("./assets/a4a.png");
+			background-size: 100% 100%;
+			width: 210px;
+			height: 70px;
+			position: absolute;
+			right: 10px;
+			/* bottom: -10px; */
+			cursor: pointer;
+			/* transform: scale(0.6); */
+		}
+
+		/* 300 90 */
+		#botMeu {
+			background-image: url("./assets/dr.png");
+			background-size: 100% 100%;
+			width: 210px;
+			height: 62px;
+			cursor: pointer;
+			/* transform: scale(0.6); */
+		}
+
+		.splay {
+			background-image: url("./assets/play.png");
+			background-size: 100% 100%;
+			width: 36px;
+			height: 36px;
+			cursor: pointer;
+			display: inline-block;
+			transform: translateY(10px);
+		}
+
+		#stopButton {
+			background-image: url("./assets/stop.png");
+			background-size: 100% 100%;
+			background-repeat: no-repeat;
+			cursor: pointer;
+			width: 36px;
+			height: 36px;
+		}
+	</style>
+
+</head>
+
+<body>
+
+	<div id="container"></div>
+	<div id="stopButton" style="position: fixed; left: 20px; top: 20px;">
+
+	</div>
+	<div id="page2">
+		<div id="conlist">
+			<div id="botMeu"> </div>
+			<ol style="margin-block-start: 0.2em;">
+				<li><span>LinG - Moonlit night </span> <span class="splay" id="startButton1"> </span></li>
+				<li><span>Melanie Ungar - What Is Love </span><span class="splay" id="startButton2"></span></li>
+				<li><span>Soundbay - Epic Cinematic </span><span class="splay" id="startButton3"></span></li>
+				<li><span>Original - Solitude </span><span class="splay" id="startButton4"></span></li>
+				<li><span>Original - Ameneurosis </span><span class="splay" id="startButton5"></span></li>
+
+			</ol>
+
+
+		</div>
+		<div id="bot" onclick="choosefile();">
+			<input type="file" id="file0" style="display: none" onchange="selectedFile();">
+		</div>
+	</div>
+
+
+	<script>
+		/* 定义场景 相机 渲染器 音频分析器 */
+		/* Define scene，camera，renderer，audio analyzer */
+		var scene, camera, renderer, analyser;
+		/* 定义宽度 和 高度 默认是窗口的大小 */
+		/* Defining the width and height defaults to the size of the window */
+		var width = window.innerWidth, height = window.innerHeight;
+		/* 定义数据对象*/
+		/* Defining data objects*/
+		let data;
+		/* 定义一个THREE组 */
+		/* Define a three group*/
+		let group = new THREE.Group();
+		let clicktag = true;
+
+		let fftSize = 128; //数据分段数 Number of data segments
+		let materials = []; //材质数据 Material data
+
+		scene = new THREE.Scene(); //场景 Scene
+
+		camera = new THREE.PerspectiveCamera(75, width / height, 1, 10000); //相机 Camera
+		camera.position.z = 1000; //相机的位置 position of camera
+		camera.lookAt(0, 0, 0); //相机的观察点 Camera observation point
+
+		renderer = new THREE.WebGLRenderer(); //渲染器 Renderer
+		renderer.setPixelRatio(window.devicePixelRatio);
+		renderer.setSize(width, height);
+
+		let container = document.getElementById('container'); //获取dom节点 Get DOM node
+		container.appendChild(renderer.domElement); //渲染的结果插入dom中 The rendered result is inserted into the DOM
+
+		/* 默认的四首歌 为每首歌曲添加一个点击事件 点击播放按钮 就开始播放 */
+		/* Default six songs add one click event for each song, click play button to start playing*/
+		let startButton = document.getElementById('startButton1');
+		startButton.addEventListener('click', (e) => {
+			playdefmp3("Moonlit night")
+		});
+
+		let startButton1 = document.getElementById('startButton2');
+		startButton1.addEventListener('click', (e) => {
+			playdefmp3("What Is Love");
+		});
+
+		let startButton2 = document.getElementById('startButton3');
+		startButton2.addEventListener('click', (e) => {
+			playdefmp3("Epic Cinematic")
+		});
+
+		let startButton3 = document.getElementById('startButton4');
+		startButton3.addEventListener('click', (e) => {
+			playdefmp3("Solitude")
+		});
+
+		let startButton4 = document.getElementById('startButton5');
+		startButton4.addEventListener('click', (e) => {
+			playdefmp3("Ameneurosis")
+		});
+
+		/* 暂停按钮 */
+		/* Pause button */
+		let stopButton = document.getElementById('stopButton');
+		stopButton.addEventListener('click', (e) => {
+			sound && sound.stop();
+		});
+
+		// let axesHelper = new THREE.AxesHelper(50); //辅助观察的坐标系 Coordinate system of auxiliary observation
+		// scene.add(axesHelper);
+
+		/* 定义一个立方体 */
+		/* Define a cube define a cube*/
+		let geometry = new THREE.BoxGeometry(1, 40, 50);
+		let material = new THREE.MeshNormalMaterial();
+		let cube = new THREE.Mesh(geometry, material);
+
+		/* 创建两个立方体数组 */
+		/* Create two cube arrays*/
+		let cubes = [], cubes2 = [];
+		/* 让立方体围绕一个圆形均匀分布 计算每个的间隔角度 设置半径 */
+		/* Let the cube distribute evenly around a circle to calculate the radius of each interval angle*/
+		let ang = 720 / fftSize, _r = 350;
+		for (let i = 0; i < fftSize / 2; i++) {
+			let angl = i * ang;
+			let c = cube.clone();
+			c.position.x = _r * Math.sin(Math.PI * angl / 180);
+			c.position.y = _r * Math.cos(Math.PI * angl / 180);
+			//旋转立方体 让它和圆的切线方向一致 Rotate the cube to make it conform to the tangent direction of the circle
+			group.add(c);
+			c.rotation.z = -Math.PI * (angl) / 180;
+			cubes.push(c);
+			c.visible = false;  //Set invisible by default
+
+
+			let c2 = cube.clone();
+			c2.position.x = (_r - 0) * Math.sin(Math.PI * angl / 180);
+			c2.position.y = (_r - 0) * Math.cos(Math.PI * angl / 180);
+			c2.rotation.z = -Math.PI * (angl) / 180;
+			group.add(c2);
+			cubes2.push(c2);
+			c2.visible = false; //Set invisible by default
+		}
+
+
+		scene.add(group) //把所有立方体添加到场景中 Add all cubes to the scene
+
+
+		addsprite()//添加星空粒子 2万个粒子  Add 20000 star particles
+		function addsprite() {
+
+			var geometry = new THREE.BufferGeometry();
+			var vertices = [];
+			/* 材质加载器 */
+			/* Material loader */
+			var textureLoader = new THREE.TextureLoader();
+
+			var sprite1 = textureLoader.load('./assets/img/snowflake6a.png');
+			var sprite2 = textureLoader.load('./assets/img/snowflake6a.png');
+
+			/* 随机生成坐标xyz */
+			/* Randomly generated coordinate XYZ */
+			for (var i = 0; i < 10000; i++) {
+				var x = Math.random() * 2000 - 1000;
+				var y = Math.random() * 4000 - 2000;
+				var z = Math.random() * 2000 - 1000;
+				vertices.push(x, y, z);
+			}
+			/* 设置顶点位置 */
+			/* Set vertex position */
+			geometry.addAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+
+			parameters = [
+				[[1, 0.01, 0.5], sprite1, 10],
+				[[0.95, 0.1, 0.5], sprite2, 15],
+			];
+
+			for (var i = 0; i < parameters.length; i++) {
+
+				var color = parameters[i][0];
+				var sprite = parameters[i][1];
+				var size = parameters[i][2];
+
+				materials[i] = new THREE.PointsMaterial({
+					size: size,
+					map: sprite,
+					blending: THREE.AdditiveBlending,
+					depthTest: false,
+					transparent: true,
+					opacity: 0.6,
+				});
+				materials[i].color.setHSL(color[0], color[1], color[2]);
+
+				var particles = new THREE.Points(geometry, materials[i]);
+
+				particles.rotation.x = Math.random() * 6;
+				particles.rotation.y = Math.random() * 6;
+				particles.rotation.z = Math.random() * 6;
+				scene.add(particles);
+
+				// materials[i].color.setHSL(1, 0.5, 0.5);
+
+
+
+			}
+			let k = 0.001;
+			setInterval(() => {
+				materials[0].color.setHSL(Math.abs(Math.sin(k)), 0.5, 0.5);
+				materials[0].color.setHSL(Math.abs(Math.sin(k+0.5)), 0.5, 0.5);
+				k += 0.01;
+				// Math.abs(Math.sin(k));
+			}, 60);
+		}
+
+		// let controls = new THREE.OrbitControls(camera, renderer.domElement); //控制器 controller
+		animate(); //运行循环动画 Run loop animation
+
+		let listener = new THREE.AudioListener();//音频监视器 Audio monitor
+		let sound = new THREE.Audio(listener);//音频对象 Audio object
+
+
+		let audioLoader = new THREE.AudioLoader();//声音加载器 Sound loader
+		let audioContext = new AudioContext();//音频上下文 Audio context
+		/* 播放默认的音频 传入路径 */
+		/* Play the default audio in path */
+		function playdefmp3(src) {
+			/* 如果当前正常播放 先停止 */
+			/* If the current normal playback, it will stops first */
+			if (sound.isPlaying) {
+				sound.stop();
+			}
+			/* 加载新的音频文件 把结果赋值的音频对象 */
+			/* Load a new audio file to assign the result to the audio object */
+			audioLoader.load('./assets/mp3/' + src + '.mp3', function (buffer) {
+				sound.setBuffer(buffer);
+				sound.setLoop(true);
+				sound.setVolume(1);
+				sound.play();
+			});
+			/* 修改音频分析器 */
+			/* Modify audio analyzer */
+			analyser = new THREE.AudioAnalyser(sound, fftSize);
+		}
+		/* 选择文件 点击事件*/
+		/* Select File click event */
+		function choosefile() {
+			let f = document.getElementById("file0");
+			f.click();//因为被隐藏了，所以用一个函数调用模仿手动点击事件 Because it is hidden, a function call is used to simulate a manual click event
+		}
+		/* 点击下拉页面事件 */
+		/* Click the drop-down page event */
+		function dropdown() {
+			// let conlist = document.getElementById('conlist');
+			// if(clicktag === true){
+			// 	conlist.style.animation = "myupdown 1s forwards";
+			// 	clicktag = false;
+			// }else{
+			// 	conlist.style.animation = "mydownup 1s forwards";
+			// 	clicktag = true;
+			// }
+
+		}
+		/* 选择文件 */
+		/* Choose file */
+		function selectedFile() {
+			let selectedFile = document.getElementById('file0').files[0];
+			// let name = selectedFile.name;//读取选中文件的文件名 Read the file name of the selected file
+			// let size = selectedFile.size;//读取选中文件的大小 Read the size of the selected file
+			let reader = new FileReader();//这是核心,读取操作就是由它完成. This is the core, by which the read operation is completed
+			reader.readAsArrayBuffer(selectedFile);
+			reader.onload = function () {
+				//当读取完成后回调这个函数,然后此时文件的内容存储到了result中,直接操作即可
+				//Call back this function after reading, and then the contents of the file are stored in the result, which can be operated directly
+				playLoadmp3(this.result)
+			}
+		}
+		/* 播放自己加载的音频文件 */
+		/* Play your own loaded audio file */
+		function playLoadmp3(buffer) {
+			if (sound.isPlaying) {
+				sound.stop();
+			}
+			audioContext.decodeAudioData(buffer, (e) => {
+				sound.setBuffer(e);
+				sound.setLoop(true);
+				sound.setVolume(0.5);
+				sound.play();
+				analyser = new THREE.AudioAnalyser(sound, fftSize);
+			})
+		}
+
+		/* 监听页面的重置大小事件 */
+		/* Reset size event of listening page*/
+		window.addEventListener('resize', onResize, false);
+		/* 自动适应窗口的变化 */
+		/* Automatically adapt to window changes */
+		function onResize() {
+			//重置渲染器大小 Reset renderer size
+			renderer.setSize(window.innerWidth, window.innerHeight);
+			//重置相机视角 Reset camera angle of view
+			camera.aspect = window.innerWidth / window.innerHeight;
+			camera.updateProjectionMatrix();
+		}
+		/* 循环播放动画 */
+		/* Loop animation */
+		function animate() {
+			requestAnimationFrame(animate); //循环执行函数 Loop execution function
+			render();
+		}
+		/* 渲染函数 */
+			/* Rendering functions */
+			function render() {
+				var time = Date.now() * 0.00005; //当前的时间戳 Current timestamp
+
+
+				if (analyser != undefined) {
+					/* 获取新的data数据 根据数据来驱动立方体的长短变化 立方体同时在不停的旋转*/
+					/* Get new data to drive the cube's length to change according to the data, and the cube rotates continuously at the same time*/
+					data = analyser.getFrequencyData();
+					if (seeType === 1) {
+						for (let i = 0; i < fftSize / 2; i++) {
+							let s = 1 + data[i] / 8;
+							let angl = i * ang;
+							s > 30 ? 30 : s; //格式化缩放比例，如果大于30 就等于30 Format the zoom scale. If it is greater than 30, it is equal to 30
+							cubes[i].scale.x = 1;
+							cubes[i].scale.y = s;
+							cubes[i].scale.z = 1;
+							cubes[i].rotation.x = 0;
+							cubes[i].rotation.z = 0.2 * Math.sin(time) + 0.8 * Math.cos(time + i * 0.005) + 5 * time + i * 0.005;
+							cubes[i].position.x = (_r - 0) * Math.sin(Math.PI * angl / 180);
+							cubes[i].position.y = (_r - 0) * Math.cos(Math.PI * angl / 180);
+							// c2.rotation.z = -Math.PI * (angl) / 180;
+
+							cubes2[fftSize / 2 - 1 - i].scale.x = 1;
+							cubes2[fftSize / 2 - 1 - i].scale.y = s;
+							cubes2[fftSize / 2 - 1 - i].scale.z = 1;
+							cubes2[fftSize / 2 - 1 - i].position.x = (_r - 0) * Math.sin(Math.PI * angl / 180);
+							cubes2[fftSize / 2 - 1 - i].position.y = (_r - 0) * Math.cos(Math.PI * angl / 180);
+							cubes2[fftSize / 2 - 1 - i].rotation.x = 0;
+							cubes2[fftSize / 2 - 1 - i].rotation.z = -(0.7 * Math.sin(time) + 0.3 * Math.cos(time + i * 0.005) + 5 * time + i * 0.005);
+							//如果缩放小于0.2倍就隐藏 Hide if zoom is less than 0.2x
+							if (s < 1.2) {
+								cubes[i].visible = false;
+								cubes2[fftSize / 2 - 1 - i].visible = false;
+							} else {
+								cubes[i].visible = true;
+								cubes2[fftSize / 2 - 1 - i].visible = true;
+							}
+						}
+
+					}
+					if (seeType === 2) {
+						for (let i = 0; i < fftSize / 2; i++) {
+							let s = 1 + data[i] / 8;
+							s > 30 ? 30 : s; //格式化缩放比例，如果大于30 就等于30 Format the zoom scale. If it is greater than 30, it is equal to 30
+							cubes[i].scale.x = 1;
+							cubes[i].scale.y = 0.05;
+							cubes[i].scale.z = s * 0.5;
+							cubes[i].position.x = i * 10;
+							cubes[i].position.y = 0;
+
+							cubes[i].rotation.x = Math.PI / 2;
+							cubes2[fftSize / 2 - 1 - i].scale.x = 1;
+							cubes2[fftSize / 2 - 1 - i].scale.y = 0.05;
+							cubes2[fftSize / 2 - 1 - i].scale.z = s * 0.5;
+							cubes2[fftSize / 2 - 1 - i].position.x = -i * 10;
+							cubes2[fftSize / 2 - 1 - i].position.y = 0;
+							cubes2[fftSize / 2 - 1 - i].rotation.x = Math.PI / 2;
+							//如果缩放小于0.2倍就隐藏 Hide if zoom is less than 0.2x
+							if (s < 1.2) {
+								cubes[i].visible = false;
+								cubes2[fftSize / 2 - 1 - i].visible = false;
+							} else {
+								cubes[i].visible = true;
+								cubes2[fftSize / 2 - 1 - i].visible = true;
+							}
+						}
+					}
+					if (seeType === 3) {
+						__t += 0.1;
+						for (let i = 0; i < fftSize / 2; i++) {
+							let s = 1 + data[i] / 8;
+							s > 30 ? 30 : s; //格式化缩放比例，如果大于30 就等于30 Format the zoom scale. If it is greater than 30, it is equal to 30
+							cubes[i].scale.x = 1;
+							cubes[i].scale.y = 0.05;
+							cubes[i].scale.z = s * 0.5;
+							cubes[i].position.x = i * 20;
+							cubes[i].position.y = 100 * Math.sin(__t + i * 0.1);
+							cubes[i].rotation.x = Math.PI / 2;
+
+							cubes2[fftSize / 2 - 1 - i].scale.x = 1;
+							cubes2[fftSize / 2 - 1 - i].scale.y = 0.05;
+							cubes2[fftSize / 2 - 1 - i].scale.z = s * 0.5;
+							cubes2[fftSize / 2 - 1 - i].position.x = -i * 20;
+							cubes2[fftSize / 2 - 1 - i].position.y = 100 * Math.sin(__t + i * 0.1);
+							cubes2[fftSize / 2 - 1 - i].rotation.x = Math.PI / 2;
+							//如果缩放小于0.2倍就隐藏 Hide if zoom is less than 0.2x
+							if (s < 1.2) {
+								cubes[i].visible = false;
+								cubes2[fftSize / 2 - 1 - i].visible = false;
+							} else {
+								cubes[i].visible = true;
+								cubes2[fftSize / 2 - 1 - i].visible = true;
+							}
+						}
+					}
+
+				}
+				/* 渲染场景 */
+				/* Render Scene  */
+				renderer.render(scene, camera);
+				/* 让粒子旋转起来 */
+				/* Let the particles spin */
+				for (var i = 0; i < scene.children.length; i++) {
+					var object = scene.children[i];
+					if (object instanceof THREE.Points) {
+						object.rotation.y = 0.1 * time * (i < 4 ? i + 1 : - (i + 1));
+					}
+				}
+				/* group旋转 */
+				/* Group rotation */
+				group.rotation.z = time;
+				/* 相机也上下左右移动 */
+				/* The camera moves up, down, left and right */
+				camera.position.x = 600 * Math.sin(time * 0.1);
+				camera.position.y = 600 * Math.cos(time * 0.01);
+				camera.lookAt(0, 0, 0)
+
+			}
+
+		</script>
+
+	</body>
+
+	</html>
